@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        {% if book.cover_filename %}
+            <img src="{{ url_for('static', filename='uploads/' + book.cover_filename) }}" 
+                class="img-fluid rounded shadow book-cover-detail" 
+                alt="{{ book.title }}">
+        {% else %}
+            <div class="book-cover-placeholder-detail">
+                <i class="fas fa-book book-icon-large"></i>
+            </div>
+        {% endif %}
+    </div>
+    <div class="col-md-8">
+        <h1>{{ book.title }}</h1>
+        <p class="text-muted">
+            <i class="fas fa-user"></i> {{ book.author }}<br>
+            <i class="fas fa-calendar"></i> {{ book.year }}<br>
+            <i class="fas fa-building"></i> {{ book.publisher }}<br>
+            <i class="fas fa-file-alt"></i> {{ book.pages }} стр.<br>
+            <i class="fas fa-tags"></i> 
+            {% for genre in genres %}
+                <span class="badge bg-secondary">{{ genre.name }}</span>
+            {% endfor %}
+        </p>
+        {% if reviews %}
+        <div class="mt-2">
+            <i class="fas fa-star text-warning"></i>
+            {% set avg_rating = reviews|sum(attribute='rating') / reviews|length %}
+            {{ "%.1f"|format(avg_rating) }}/5 
+            <small class="text-muted">({{ reviews|length }} 
+            {% if reviews|length == 1 %}оценка{% elif reviews|length in [2,3,4] %}оценки{% else %}оценок{% endif %})</small>
+        </div>
+        {% endif %}
+        <hr>
+        <h3>Описание</h3>
+        <div class="book-description">
+            {{ book.description_html|safe }}
+        </div>
+    </div>
+</div>
+
+<hr>
+
+<h3>Рецензии</h3>
+{% if user_review %}
+    <div class="alert alert-info">
+        <strong>Ваша рецензия:</strong> 
+        <div class="mt-2">
+            <strong>Оценка: {{ user_review.rating }}/5</strong>
+            <p>{{ user_review.text_html|safe }}</p>
+        </div>
+    </div>
+{% elif session.user_id %}
+    <a href="{{ url_for('add_review', book_id=book.id) }}" class="btn btn-primary">
+        <i class="fas fa-pen"></i> Написать рецензию
+    </a>
+{% else %}
+    <p><a href="{{ url_for('login') }}">Войдите</a>, чтобы оставить рецензию</p>
+{% endif %}
+
+<div class="mt-4">
+    {% for review in reviews %}
+    <div class="card mb-3">
+        <div class="card-header">
+            <strong>{{ review.last_name }} {{ review.first_name }}</strong>
+            <span class="text-warning ms-2">
+                {% for i in range(review.rating) %}★{% endfor %}
+                {% for i in range(5 - review.rating) %}☆{% endfor %}
+            </span>
+            <small class="text-muted float-end">{{ review.created_at }}</small>
+        </div>
+        <div class="card-body">
+            <p>{{ review.text_html|safe }}</p>
+        </div>
+    </div>
+    {% else %}
+    <p>Пока нет рецензий. Будьте первым!</p>
+    {% endfor %}
+</div>
+
+<div class="mt-4">
+    <a href="{{ url_for('index') }}" class="btn btn-secondary">← Назад к списку</a>
+</div>
+{% endblock %}

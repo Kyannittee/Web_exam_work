@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+{% extends "base.html" %}
+
+{% block content %}
+<h1 class="mb-4">Каталог книг</h1>
+
+<!-- Форма поиска -->
+<div class="card mb-4">
+    <div class="card-header bg-info text-white">
+        <h5 class="mb-0"><i class="fas fa-search"></i> Поиск книг</h5>
+    </div>
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('index') }}">
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label for="title" class="form-label">Название</label>
+                    <input type="text" class="form-control" id="title" name="title" 
+                           value="{{ search_params.title }}" placeholder="Введите название...">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="author" class="form-label">Автор</label>
+                    <input type="text" class="form-control" id="author" name="author" 
+                           value="{{ search_params.author }}" placeholder="Введите автора...">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="genres" class="form-label">Жанры</label>
+                    <select class="form-select" id="genres" name="genres" multiple size="3">
+                        {% for genre in genres_list %}
+                            <option value="{{ genre.id }}" 
+                                    {% if genre.id|string in search_params.genres %}selected{% endif %}>
+                                {{ genre.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                    <small class="text-muted">Удерживайте Ctrl для выбора нескольких жанров</small>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="years" class="form-label">Год издания</label>
+                    <select class="form-select" id="years" name="years" multiple size="3">
+                        {% for year in years %}
+                            <option value="{{ year.year }}" 
+                                    {% if year.year|string in search_params.years %}selected{% endif %}>
+                                {{ year.year }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label for="pages_from" class="form-label">Объём от (страниц)</label>
+                    <input type="number" class="form-control" id="pages_from" name="pages_from" 
+                           value="{{ search_params.pages_from or '' }}">
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label for="pages_to" class="form-label">Объём до (страниц)</label>
+                    <input type="number" class="form-control" id="pages_to" name="pages_to" 
+                           value="{{ search_params.pages_to or '' }}">
+                </div>
+                <div class="col-md-6 mb-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary me-2">
+                        <i class="fas fa-search"></i> Найти
+                    </button>
+                    <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                        <i class="fas fa-undo"></i> Сбросить
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Список книг -->
+<div class="row">
+    {% for book in books %}
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            {% if book.cover_filename %}
+                <img src="{{ url_for('static', filename='uploads/' + book.cover_filename) }}" 
+                    class="card-img-top book-cover-index" 
+                    alt="{{ book.title }}">
+            {% else %}
+                <div class="book-cover-placeholder-index">
+                    <i class="fas fa-book book-icon"></i>
+                </div>
+            {% endif %}
+            <div class="card-body">
+                <h5 class="card-title">{{ book.title }}</h5>
+                <p class="card-text">
+                    <small class="text-muted">
+                        <i class="fas fa-user"></i> {{ book.author }}<br>
+                        <i class="fas fa-calendar"></i> {{ book.year }}<br>
+                        <i class="fas fa-tags"></i> 
+                        {% for genre in book.genres %}
+                            <span class="badge bg-secondary">{{ genre.name }}</span>
+                        {% endfor %}<br>
+                        <i class="fas fa-star text-warning"></i> 
+                        {% if book.avg_rating %}
+                            {{ "%.1f"|format(book.avg_rating) }}
+                        {% else %}
+                            0
+                        {% endif %}
+                        / 5 
+                        ({{ book.reviews_count or 0 }} 
+                        {% set reviews_count = book.reviews_count or 0 %}
+                        {% if reviews_count == 0 %}
+                            отзывов
+                        {% elif reviews_count == 1 %}
+                            отзыв
+                        {% elif reviews_count % 10 == 1 and reviews_count != 11 %}
+                            отзыв
+                        {% elif reviews_count % 10 in [2, 3, 4] and reviews_count not in [12, 13, 14] %}
+                            отзыва
+                        {% else %}
+                            отзывов
+                        {% endif %})
+                    </small>
+                </p>
+            </div>
+            <div class="card-footer bg-transparent">
+                <div class="btn-group w-100">
+                    <a href="{{ url_for('book_detail', book_id=book.id) }}" class="btn btn-outline-primary">
+                        <i class="fas fa-eye"></i> Просмотр
+                    </a>
+                    {% if session.user_id %}
+                        {% set role = get_user_role() %}
+                        {% if role in ['admin', 'moderator'] %}
+                            <a href="{{ url_for('edit_book', book_id=book.id) }}" class="btn btn-outline-warning">
+                                <i class="fas fa-edit"></i> Ред.
+                            </a>
+                        {% endif %}
+                        {% if role == 'admin' %}
+                            <button type="button" class="btn btn-outline-danger" 
+                                    data-bs-toggle="modal" data-bs-target="#deleteModal{{ book.id }}">
+                                <i class="fas fa-trash"></i> Удалить
+                            </button>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Модальное окно удаления -->
+    {% if session.user_id and get_user_role() == 'admin' %}
+    <div class="modal fade" id="deleteModal{{ book.id }}" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Удаление книги</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Вы уверены, что хотите удалить книгу <strong>"{{ book.title }}"</strong>?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Нет</button>
+                    <form action="{{ url_for('delete_book', book_id=book.id) }}" method="POST" style="display: inline;">
+                        <button type="submit" class="btn btn-danger">Да</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="col-12">
+        <div class="alert alert-info">Книги не найдены</div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Пагинация -->
+{% if books %}
+<nav aria-label="Page navigation">
+    <ul class="pagination justify-content-center">
+        {% for p in pages %}
+            {% set args = request.args.to_dict() %}
+            {% set _ = args.pop('page', None) %}
+            <li class="page-item {% if p == page %}active{% endif %}">
+                <a class="page-link" href="{{ url_for('index', page=p, **args) }}">{{ p }}</a>
+            </li>
+        {% endfor %}
+    </ul>
+</nav>
+{% endif %}
+
+<!-- Кнопка добавления книги (только для админа) -->
+{% if session.user_id and get_user_role() == 'admin' %}
+<div class="text-center mt-4">
+    <a href="{{ url_for('add_book') }}" class="btn btn-success btn-lg">
+        <i class="fas fa-plus"></i> Добавить книгу
+    </a>
+</div>
+{% endif %}
+{% endblock %}
